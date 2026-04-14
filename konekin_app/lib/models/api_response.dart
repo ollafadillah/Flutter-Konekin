@@ -1,22 +1,25 @@
 class ApiResponse<T> {
   final bool success;
-  final String message;
   final T? data;
-  final int? statusCode;
+  final String message;
+  final int? total;
 
   ApiResponse({
     required this.success,
-    required this.message,
     this.data,
-    this.statusCode,
+    required this.message,
+    this.total,
   });
 
-  factory ApiResponse.fromJson(Map<String, dynamic> json, T Function(dynamic) fromJson) {
+  factory ApiResponse.fromJson(
+    Map<String, dynamic> json,
+    T Function(dynamic) fromJson,
+  ) {
     return ApiResponse(
       success: json['success'] ?? false,
       message: json['message'] ?? '',
       data: json['data'] != null ? fromJson(json['data']) : null,
-      statusCode: json['statusCode'],
+      total: json['total'],
     );
   }
 
@@ -24,37 +27,7 @@ class ApiResponse<T> {
     return ApiResponse(
       success: false,
       message: message,
-      statusCode: statusCode,
-    );
-  }
-}
-
-class ApiResponseList<T> {
-  final bool success;
-  final String message;
-  final List<T> data;
-  final int? total;
-  final int? page;
-  final int? limit;
-
-  ApiResponseList({
-    required this.success,
-    required this.message,
-    this.data = const [],
-    this.total,
-    this.page,
-    this.limit,
-  });
-
-  factory ApiResponseList.fromJson(Map<String, dynamic> json, T Function(dynamic) fromJson) {
-    final List<dynamic> dataList = json['data'] ?? [];
-    return ApiResponseList(
-      success: json['success'] ?? false,
-      message: json['message'] ?? '',
-      data: dataList.map((item) => fromJson(item)).toList(),
-      total: json['total'],
-      page: json['page'],
-      limit: json['limit'],
+      total: statusCode,
     );
   }
 }

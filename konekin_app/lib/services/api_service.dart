@@ -1,334 +1,445 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../core/constants/api_constants.dart';  // <-- TAMBAHKAN INI!
+import '../core/constants/api_constants.dart';
 import '../models/api_response.dart';
+import '../models/user_model.dart';
 import '../models/project_model.dart';
 import '../models/proposal_model.dart';
-import '../models/user_model.dart';
 
 class ApiService {
+  // ============ PRIVATE METHODS ============
+  
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
     return {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }
 
-  Future<dynamic> _request(String url, {String method = 'GET', dynamic body}) async {
+  Future<http.Response> _get(String url) async {
+    final headers = await _getHeaders();
+    return await http.get(Uri.parse(url), headers: headers);
+  }
+
+  Future<http.Response> _post(String url, dynamic data) async {
+    final headers = await _getHeaders();
+    return await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(data),
+    );
+  }
+
+  Future<http.Response> _put(String url, dynamic data) async {
+    final headers = await _getHeaders();
+    return await http.put(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(data),
+    );
+  }
+
+  Future<http.Response> _delete(String url) async {
+    final headers = await _getHeaders();
+    return await http.delete(Uri.parse(url), headers: headers);
+  }
+
+  // ============ AUTH ============
+  
+  Future<ApiResponse<Map<String, dynamic>>> login(String email, String password) async {
     try {
-      final headers = await _getHeaders();
-      final uri = Uri.parse(url);
+      final response = await _post(ApiConstants.login, {
+        'email': email,
+        'password': password,
+      });
       
-      http.Response response;
+      final data = jsonDecode(response.body);
       
-      switch (method) {
-        case 'POST':
-          response = await http.post(uri, headers: headers, body: jsonEncode(body));
-          break;
-        case 'PUT':
-          response = await http.put(uri, headers: headers, body: jsonEncode(body));
-          break;
-        case 'DELETE':
-          response = await http.delete(uri, headers: headers);
-          break;
-        default:
-          response = await http.get(uri, headers: headers);
+      if (response.statusCode == 200) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', data['token']);
+        await prefs.setString('user_role', data['user']['role']);
+        await prefs.setString('user_id', data['user']['id']);
+        await prefs.setString('user_name', data['user']['name']);
+        
+        return ApiResponse(
+          success: true,
+          data: data['user'],
+          message: 'Login berhasil',
+        );
       }
-      
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body);
-      } else {
-        return {'success': false, 'message': 'Server error: ${response.statusCode}'};
-      }
+      return ApiResponse(
+        success: false,
+        message: data['message'] ?? 'Login gagal',
+      );
     } catch (e) {
-      return {'success': false, 'message': 'Network error: $e'};
+      return ApiResponse(success: false, message: e.toString());
     }
   }
 
-  // AUTH
-  Future<ApiResponse<UserModel>> login(String email, String password) async {
-    final response = await _request(
-      ApiConstants.login,
-      method: 'POST',
-      body: {'email': email, 'password': password},
-    );
-    
-    if (response['success']) {
+  Future<ApiResponse> logout() async {
+    try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_token', response['token']);
-      await prefs.setString('user_role', response['user']['role']);
-      await prefs.setString('user_id', response['user']['id']);
-      
-      return ApiResponse(
-        success: true,
-        message: response['message'],
-        data: UserModel.fromJson(response['user']),
-      );
-    } else {
-      return ApiResponse.error(response['message'] ?? 'Login failed');
+      await prefs.remove('auth_token');
+      await prefs.remove('user_role');
+      await prefs.remove('user_id');
+      await prefs.remove('user_name');
+      return ApiResponse(success: true, message: 'Logout berhasil');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
   }
 
-  Future<ApiResponse<UserModel>> register(Map<String, dynamic> userData) async {
-    final response = await _request(
-      ApiConstants.register,
-      method: 'POST',
-      body: userData,
-    );
-    
-    if (response['success']) {
-      return ApiResponse(
-        success: true,
-        message: response['message'],
-        data: UserModel.fromJson(response['user']),
-      );
-    } else {
-      return ApiResponse.error(response['message'] ?? 'Registration failed');
-    }
-  }
-
-  Future<ApiResponse<bool>> logout() async {
-    final response = await _request(ApiConstants.logout, method: 'POST');
-    if (response['success']) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
-      return ApiResponse(success: true, message: 'Logout berhasil', data: true);
-    }
-    return ApiResponse.error(response['message'] ?? 'Logout failed');
-  }
-
-  // PROFILE
+  // ============ PROFILE ============
+  
   Future<ApiResponse<UserModel>> getProfile() async {
-    final response = await _request(ApiConstants.getProfile);
-    if (response['success']) {
-      return ApiResponse(
-        success: true,
-        message: response['message'],
-        data: UserModel.fromJson(response['data']),
-      );
+    try {
+      final response = await _get(ApiConstants.getProfile);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(
+          success: true,
+          data: UserModel.fromJson(data['data']),
+          message: 'Sukses',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat profil');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponse.error(response['message'] ?? 'Failed to load profile');
   }
 
   Future<ApiResponse<UserModel>> updateProfile(Map<String, dynamic> profileData) async {
-    final response = await _request(
-      ApiConstants.updateProfile,
-      method: 'PUT',
-      body: profileData,
-    );
-    
-    if (response['success']) {
-      return ApiResponse(
-        success: true,
-        message: response['message'],
-        data: UserModel.fromJson(response['data']),
-      );
+    try {
+      final response = await _put(ApiConstants.updateProfile, profileData);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(
+          success: true,
+          data: UserModel.fromJson(data['data']),
+          message: 'Profil berhasil diperbarui',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal update profil');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponse.error(response['message'] ?? 'Update failed');
   }
 
-  // PROJECTS
-  Future<ApiResponseList<ProjectModel>> getMyProjects() async {
-    final response = await _request(ApiConstants.getMyProjects);
-    if (response['success']) {
-      final List<dynamic> data = response['data'];
-      final projects = data.map((json) => ProjectModel.fromJson(json)).toList();
-      return ApiResponseList(
-        success: true,
-        message: response['message'],
-        data: projects,
-        total: response['total'],
-      );
+  // ============ PORTFOLIO ============
+  
+  Future<ApiResponse<List<Map<String, dynamic>>>> getPortfolios() async {
+    try {
+      final response = await _get(ApiConstants.getPortfolio);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        List<Map<String, dynamic>> portfolios = [];
+        if (data['data'] is List) {
+          portfolios = List<Map<String, dynamic>>.from(data['data']);
+        }
+        return ApiResponse(
+          success: true,
+          data: portfolios,
+          message: 'Sukses',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat portfolio');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponseList(success: false, message: response['message'] ?? 'Failed');
   }
 
-  Future<ApiResponseList<ProjectModel>> getAllProjects({
+  Future<ApiResponse> createPortfolio(Map<String, dynamic> portfolioData) async {
+    try {
+      final response = await _post(ApiConstants.createPortfolio, portfolioData);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return ApiResponse(success: true, message: 'Portfolio berhasil ditambahkan');
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal tambah portfolio');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse> deletePortfolio(String portfolioId) async {
+    try {
+      final response = await _delete('${ApiConstants.deletePortfolio}/$portfolioId');
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(success: true, message: 'Portfolio berhasil dihapus');
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal hapus portfolio');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  // ============ PROJECT ============
+  
+  Future<ApiResponse<ProjectModel>> createProject(Map<String, dynamic> projectData) async {
+    try {
+      final response = await _post(ApiConstants.createProject, projectData);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 201) {
+        return ApiResponse(
+          success: true,
+          data: ProjectModel.fromJson(data['data']),
+          message: 'Proyek berhasil dibuat',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal buat proyek');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse<List<ProjectModel>>> getMyProjects() async {
+    try {
+      final response = await _get(ApiConstants.getMyProjects);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        List<ProjectModel> projects = [];
+        if (data['data'] is List) {
+          projects = (data['data'] as List)
+              .map((item) => ProjectModel.fromJson(item))
+              .toList();
+        }
+        return ApiResponse(
+          success: true,
+          data: projects,
+          message: 'Sukses',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat proyek');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse<List<ProjectModel>>> getAllProjects({
     String? category,
     String? search,
     int page = 1,
     int limit = 10,
   }) async {
-    String url = ApiConstants.getAllProjects;
-    final queryParams = <String, String>{};
-    if (category != null) queryParams['category'] = category;
-    if (search != null) queryParams['search'] = search;
-    queryParams['page'] = page.toString();
-    queryParams['limit'] = limit.toString();
-    
-    if (queryParams.isNotEmpty) {
-      url = '$url?${Uri(queryParameters: queryParams).query}';
+    try {
+      String url = ApiConstants.getAllProjects;
+      List<String> params = [];
+      if (category != null) params.add('category=$category');
+      if (search != null) params.add('search=$search');
+      params.add('page=$page');
+      params.add('limit=$limit');
+      if (params.isNotEmpty) url += '?${params.join('&')}';
+      
+      final response = await _get(url);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        List<ProjectModel> projects = [];
+        if (data['data'] is List) {
+          projects = (data['data'] as List)
+              .map((item) => ProjectModel.fromJson(item))
+              .toList();
+        }
+        return ApiResponse(
+          success: true,
+          data: projects,
+          message: 'Sukses',
+          total: data['total'],
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat proyek');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    
-    final response = await _request(url);
-    if (response['success']) {
-      final List<dynamic> data = response['data'];
-      final projects = data.map((json) => ProjectModel.fromJson(json)).toList();
-      return ApiResponseList(
-        success: true,
-        message: response['message'],
-        data: projects,
-        total: response['total'],
-        page: response['page'],
-        limit: response['limit'],
-      );
-    }
-    return ApiResponseList(success: false, message: response['message'] ?? 'Failed');
   }
 
   Future<ApiResponse<ProjectModel>> getProjectDetail(String projectId) async {
-    final response = await _request('${ApiConstants.getProjectDetail}/$projectId');
-    if (response['success']) {
-      return ApiResponse(
-        success: true,
-        message: response['message'],
-        data: ProjectModel.fromJson(response['data']),
-      );
+    try {
+      final response = await _get('${ApiConstants.getProjectDetail}/$projectId');
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(
+          success: true,
+          data: ProjectModel.fromJson(data['data']),
+          message: 'Sukses',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat detail proyek');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponse.error(response['message'] ?? 'Project not found');
   }
 
-  Future<ApiResponse<ProjectModel>> createProject(Map<String, dynamic> projectData) async {
-    final response = await _request(
-      ApiConstants.createProject,
-      method: 'POST',
-      body: projectData,
-    );
-    
-    if (response['success']) {
-      return ApiResponse(
-        success: true,
-        message: response['message'],
-        data: ProjectModel.fromJson(response['data']),
-      );
+  Future<ApiResponse> deleteProject(String projectId) async {
+    try {
+      final response = await _delete('${ApiConstants.deleteProject}/$projectId');
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(success: true, message: 'Proyek berhasil dihapus');
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal hapus proyek');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponse.error(response['message'] ?? 'Create failed');
   }
 
-  Future<ApiResponse<bool>> deleteProject(String projectId) async {
-    final response = await _request(
-      '${ApiConstants.deleteProject}/$projectId',
-      method: 'DELETE',
-    );
-    return ApiResponse(
-      success: response['success'],
-      message: response['message'],
-      data: response['success'],
-    );
-  }
-
-  // PROPOSALS
-  Future<ApiResponse<ProposalModel>> submitProposal(Map<String, dynamic> proposalData) async {
-    final response = await _request(
-      ApiConstants.submitProposal,
-      method: 'POST',
-      body: proposalData,
-    );
-    
-    if (response['success']) {
-      return ApiResponse(
-        success: true,
-        message: response['message'],
-        data: ProposalModel.fromJson(response['data']),
-      );
+  // ============ PROPOSAL ============
+  
+  Future<ApiResponse> submitProposal(Map<String, dynamic> proposalData) async {
+    try {
+      final response = await _post(ApiConstants.submitProposal, proposalData);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 201) {
+        return ApiResponse(success: true, message: 'Proposal berhasil dikirim');
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal kirim proposal');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponse.error(response['message'] ?? 'Submit failed');
   }
 
-  Future<ApiResponseList<ProposalModel>> getMyProposals() async {
-    final response = await _request(ApiConstants.getMyProposals);
-    if (response['success']) {
-      final List<dynamic> data = response['data'];
-      final proposals = data.map((json) => ProposalModel.fromJson(json)).toList();
-      return ApiResponseList(
-        success: true,
-        message: response['message'],
-        data: proposals,
-      );
+  Future<ApiResponse<List<ProposalModel>>> getMyProposals() async {
+    try {
+      final response = await _get(ApiConstants.getMyProposals);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        List<ProposalModel> proposals = [];
+        if (data['data'] is List) {
+          proposals = (data['data'] as List)
+              .map((item) => ProposalModel.fromJson(item))
+              .toList();
+        }
+        return ApiResponse(
+          success: true,
+          data: proposals,
+          message: 'Sukses',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat proposal');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponseList(success: false, message: response['message'] ?? 'Failed');
   }
 
-  Future<ApiResponseList<ProposalModel>> getProjectProposals(String projectId) async {
-    final response = await _request('${ApiConstants.getProjectProposals}/$projectId');
-    if (response['success']) {
-      final List<dynamic> data = response['data'];
-      final proposals = data.map((json) => ProposalModel.fromJson(json)).toList();
-      return ApiResponseList(
-        success: true,
-        message: response['message'],
-        data: proposals,
-      );
+  Future<ApiResponse<List<ProposalModel>>> getProjectProposals(String projectId) async {
+    try {
+      final response = await _get('${ApiConstants.getProjectProposals}/$projectId');
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        List<ProposalModel> proposals = [];
+        if (data['data'] is List) {
+          proposals = (data['data'] as List)
+              .map((item) => ProposalModel.fromJson(item))
+              .toList();
+        }
+        return ApiResponse(
+          success: true,
+          data: proposals,
+          message: 'Sukses',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat proposal');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponseList(success: false, message: response['message'] ?? 'Failed');
   }
 
-  Future<ApiResponse<bool>> acceptProposal(String proposalId) async {
-    final response = await _request(
-      '${ApiConstants.acceptProposal}/$proposalId',
-      method: 'PUT',
-    );
-    return ApiResponse(
-      success: response['success'],
-      message: response['message'],
-      data: response['success'],
-    );
-  }
-
-  Future<ApiResponse<bool>> rejectProposal(String proposalId) async {
-    final response = await _request(
-      '${ApiConstants.rejectProposal}/$proposalId',
-      method: 'PUT',
-    );
-    return ApiResponse(
-      success: response['success'],
-      message: response['message'],
-      data: response['success'],
-    );
-  }
-
-  // SAVED PROJECTS
-    // SAVED PROJECTS
-  Future<ApiResponse<bool>> saveProject(String projectId) async {
-    final response = await _request(
-      ApiConstants.saveProject,
-      method: 'POST',
-      body: {'projectId': projectId},
-    );
-    return ApiResponse(
-      success: response['success'],
-      message: response['message'],
-      data: response['success'],
-    );
-  }
-
-  Future<ApiResponse<bool>> unsaveProject(String projectId) async {
-    final response = await _request(
-      '${ApiConstants.unsaveProject}/$projectId',
-      method: 'DELETE',
-    );
-    return ApiResponse(
-      success: response['success'],
-      message: response['message'],
-      data: response['success'],
-    );
-  }
-
-  Future<ApiResponseList<ProjectModel>> getSavedProjects() async {
-    final response = await _request(ApiConstants.getSavedProjects);
-    if (response['success']) {
-      final List<dynamic> data = response['data'];
-      final projects = data.map((json) => ProjectModel.fromJson(json)).toList();
-      return ApiResponseList(
-        success: true,
-        message: response['message'],
-        data: projects,
-      );
+  Future<ApiResponse> acceptProposal(String proposalId) async {
+    try {
+      final response = await _post('${ApiConstants.acceptProposal}/$proposalId', {});
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(success: true, message: 'Proposal diterima');
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal menerima proposal');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
     }
-    return ApiResponseList(success: false, message: response['message'] ?? 'Failed');
+  }
+
+  Future<ApiResponse> rejectProposal(String proposalId) async {
+    try {
+      final response = await _post('${ApiConstants.rejectProposal}/$proposalId', {});
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(success: true, message: 'Proposal ditolak');
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal menolak proposal');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  // ============ SAVE PROJECT ============
+  
+  Future<ApiResponse> saveProject(String projectId) async {
+    try {
+      final response = await _post('${ApiConstants.saveProject}/$projectId', {});
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(success: true, message: 'Proyek disimpan');
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal menyimpan proyek');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse> unsaveProject(String projectId) async {
+    try {
+      final response = await _delete('${ApiConstants.unsaveProject}/$projectId');
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return ApiResponse(success: true, message: 'Proyek dihapus dari simpanan');
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal menghapus dari simpanan');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
+  }
+
+  Future<ApiResponse<List<ProjectModel>>> getSavedProjects() async {
+    try {
+      final response = await _get(ApiConstants.getSavedProjects);
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        List<ProjectModel> projects = [];
+        if (data['data'] is List) {
+          projects = (data['data'] as List)
+              .map((item) => ProjectModel.fromJson(item))
+              .toList();
+        }
+        return ApiResponse(
+          success: true,
+          data: projects,
+          message: 'Sukses',
+        );
+      }
+      return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat proyek tersimpan');
+    } catch (e) {
+      return ApiResponse(success: false, message: e.toString());
+    }
   }
 }

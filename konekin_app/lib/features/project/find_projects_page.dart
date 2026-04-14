@@ -62,9 +62,9 @@ class _FindProjectsPageState extends State<FindProjectsPage> {
     if (mounted) {
       setState(() {
         if (_currentPage == 1) {
-          _projects = response.data;
+          _projects = response.data ?? [];
         } else {
-          _projects.addAll(response.data);
+          _projects.addAll(response.data ?? []);
         }
         _totalPages = (response.total ?? 0) ~/ 10 + 1;
         _isLoading = false;

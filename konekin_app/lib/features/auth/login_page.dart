@@ -42,13 +42,13 @@ class _LoginPageState extends State<LoginPage> {
         final authService = Provider.of<AuthService>(context, listen: false);
         authService.setAuthData(
           'token', 
-          response.data!.role, 
-          response.data!.id,
-          response.data!.name,
-        );
+          response.data!['role'] ?? 'umkm', 
+          response.data!['id'] ?? '',
+          response.data!['name'] ?? '',
+          );
         
         if (mounted) {
-          if (response.data!.role == 'umkm') {
+          if (response.data!['role'] == 'umkm') {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const UmkmDashboard()),

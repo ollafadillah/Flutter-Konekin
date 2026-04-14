@@ -34,7 +34,7 @@ class _ProjectListPageState extends State<ProjectListPage> {
     
     if (mounted) {
       setState(() {
-        _projects = response.data;
+        _projects = response.data ?? [];
         _isLoading = false;
       });
     }

@@ -33,7 +33,7 @@ class _MyProposalsPageState extends State<MyProposalsPage> {
     
     if (mounted) {
       setState(() {
-        _proposals = response.data;
+        _proposals = _proposals = response.data ?? [];
         _isLoading = false;
       });
     }

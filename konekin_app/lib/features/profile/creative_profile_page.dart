@@ -325,7 +325,7 @@ class _CreativeProfilePageState extends State<CreativeProfilePage> {
                           const SizedBox(height: 16),
                           
                           DropdownButtonFormField<String>(
-                            value: _selectedExperience,
+                            initialValue: _selectedExperience,
                             decoration: const InputDecoration(
                               labelText: 'Tingkat Pengalaman',
                               prefixIcon: Icon(Icons.trending_up),
@@ -378,7 +378,7 @@ class _CreativeProfilePageState extends State<CreativeProfilePage> {
                             subtitle: const Text('Aktifkan agar UMKM dapat melihat Anda'),
                             value: _isAvailable,
                             onChanged: (value) => setState(() => _isAvailable = value),
-                            activeColor: AppTheme.primaryColor,
+                            activeThumbColor: AppTheme.primaryColor,
                             contentPadding: EdgeInsets.zero,
                           ),
                           const SizedBox(height: 24),

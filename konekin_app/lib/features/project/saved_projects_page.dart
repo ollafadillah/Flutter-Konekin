@@ -30,7 +30,7 @@ class _SavedProjectsPageState extends State<SavedProjectsPage> {
     
     if (mounted) {
       setState(() {
-        _projects = response.data;
+        _projects = _projects = response.data ?? [];;
         _isLoading = false;
       });
     }

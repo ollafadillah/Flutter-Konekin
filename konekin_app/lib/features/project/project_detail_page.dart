@@ -47,7 +47,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     if (mounted) {
       setState(() {
         _project = projectResponse.data;
-        _proposals = proposalsResponse.data;
+        _proposals = _proposals = proposalsResponse.data ?? [];
         _isSaved = _project?.isSaved ?? false;
         _isLoading = false;
       });
