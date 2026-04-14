@@ -1,18 +1,17 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import '../core/constants/api_constants.dart';
-import '../data/models/api_response.dart';
-import '../data/models/user_model.dart';
-import '../data/models/project_model.dart';
-import '../data/models/proposal_model.dart';
+import '../../models/api_response.dart';
+import '../../models/user_model.dart';
+import '../../models/project_model.dart';
+import '../../models/proposal_model.dart';
+import '../local/shared_prefs_service.dart';
+import '../../../core/constants/api_constants.dart';
 
 class ApiService {
   // ============ PRIVATE METHODS ============
   
   Future<Map<String, String>> _getHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
+    final token = SharedPrefsService.getString('auth_token');
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -59,11 +58,10 @@ class ApiService {
       final data = jsonDecode(response.body);
       
       if (response.statusCode == 200) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', data['token']);
-        await prefs.setString('user_role', data['user']['role']);
-        await prefs.setString('user_id', data['user']['id']);
-        await prefs.setString('user_name', data['user']['name']);
+        await SharedPrefsService.setString('auth_token', data['token']);
+        await SharedPrefsService.setString('user_role', data['user']['role']);
+        await SharedPrefsService.setString('user_id', data['user']['id']);
+        await SharedPrefsService.setString('user_name', data['user']['name']);
         
         return ApiResponse(
           success: true,
@@ -82,11 +80,7 @@ class ApiService {
 
   Future<ApiResponse> logout() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('auth_token');
-      await prefs.remove('user_role');
-      await prefs.remove('user_id');
-      await prefs.remove('user_name');
+      await SharedPrefsService.clear();
       return ApiResponse(success: true, message: 'Logout berhasil');
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
@@ -150,34 +144,6 @@ class ApiService {
         );
       }
       return ApiResponse(success: false, message: data['message'] ?? 'Gagal memuat portfolio');
-    } catch (e) {
-      return ApiResponse(success: false, message: e.toString());
-    }
-  }
-
-  Future<ApiResponse> createPortfolio(Map<String, dynamic> portfolioData) async {
-    try {
-      final response = await _post(ApiConstants.createPortfolio, portfolioData);
-      final data = jsonDecode(response.body);
-      
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return ApiResponse(success: true, message: 'Portfolio berhasil ditambahkan');
-      }
-      return ApiResponse(success: false, message: data['message'] ?? 'Gagal tambah portfolio');
-    } catch (e) {
-      return ApiResponse(success: false, message: e.toString());
-    }
-  }
-
-  Future<ApiResponse> deletePortfolio(String portfolioId) async {
-    try {
-      final response = await _delete('${ApiConstants.deletePortfolio}/$portfolioId');
-      final data = jsonDecode(response.body);
-      
-      if (response.statusCode == 200) {
-        return ApiResponse(success: true, message: 'Portfolio berhasil dihapus');
-      }
-      return ApiResponse(success: false, message: data['message'] ?? 'Gagal hapus portfolio');
     } catch (e) {
       return ApiResponse(success: false, message: e.toString());
     }

@@ -1,5 +1,7 @@
+import '../../config/app_config.dart';
+
 class ApiConstants {
-  static const String baseUrl = 'http://localhost:5000/api';
+  static const String baseUrl = AppConfig.baseUrl;
   static const String uploadUrl = '$baseUrl/upload';
   
   // Auth
@@ -32,9 +34,10 @@ class ApiConstants {
   // Save
   static const String saveProject = '$baseUrl/saved';
   static const String getSavedProjects = '$baseUrl/saved';
-  static const String unsaveProject = '$baseUrl/saved';  
-  // Portfolio// Portfolio
-static const String getPortfolio = '$baseUrl/users/portfolio';
-static const String createPortfolio = '$baseUrl/users/portfolio';
-static const String deletePortfolio = '$baseUrl/users/portfolio';
+  static const String unsaveProject = '$baseUrl/saved';
+  
+  // Portfolio
+  static const String getPortfolio = '$baseUrl/users/portfolio';
+  static const String createPortfolio = '$baseUrl/users/portfolio';
+  static const String deletePortfolio = '$baseUrl/users/portfolio';
 }
